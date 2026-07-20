@@ -30,6 +30,32 @@ interface GenerationResult {
   pro: ModelResult;
 }
 
+interface FortuneDetail {
+  score: number;
+  description: string;
+}
+
+interface FaceFeature {
+  name: string;
+  value: string;
+  description: string;
+}
+
+interface FaceReadingData {
+  overallScore: number;
+  summary: string;
+  features: FaceFeature[];
+  fortunes: {
+    wealth: FortuneDetail;
+    love: FortuneDetail;
+    career: FortuneDetail;
+    health: FortuneDetail;
+    [key: string]: FortuneDetail;
+  };
+  celebrity: string;
+  advice: string;
+}
+
 const LOADING_MESSAGES = [
   "조명을 세팅하고 있어요 💡",
   "베스트 각도를 찾는 중이에요 📐",
@@ -61,7 +87,7 @@ export default function UploadCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [result, setResult] = useState<GenerationResult | null>(null);
-  const [faceReadingResult, setFaceReadingResult] = useState<any | null>(null);
+  const [faceReadingResult, setFaceReadingResult] = useState<FaceReadingData | null>(null);
   const [usedStyleId, setUsedStyleId] = useState<string>("corporate");
   const [printSizeId, setPrintSizeId] = useState<string>(PRINT_SIZES[1].id);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
@@ -411,7 +437,7 @@ export default function UploadCard() {
             📊 4대 분야별 운세 점수
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {Object.entries(data.fortunes || {}).map(([key, fort]: any) => {
+            {Object.entries(data.fortunes || {}).map(([key, fort]: [string, FortuneDetail]) => {
               const info = fortuneLabels[key] || { label: key, emoji: "✨", color: "bg-slate-500" };
               return (
                 <div key={key} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
@@ -443,7 +469,7 @@ export default function UploadCard() {
             🧐 신체 부위별 상세 관상 (오관)
           </h4>
           <div className="space-y-3">
-            {(data.features || []).map((feat: any, idx: number) => (
+            {(data.features || []).map((feat: FaceFeature, idx: number) => (
               <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-xs font-extrabold text-indigo-600 bg-indigo-50/80 px-2 py-0.5 rounded-md">
