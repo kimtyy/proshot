@@ -38,6 +38,15 @@ const LOADING_MESSAGES = [
   "미세 보정으로 마무리하는 중 ✨",
 ];
 
+const FACE_READING_LOADING_MESSAGES = [
+  "얼굴 윤곽선을 스캔하고 있어요 📐",
+  "오관(이마, 눈, 코, 입, 귀)의 특징을 감지 중입니다 🧐",
+  "이마와 눈썹 모양에 따른 기운을 읽고 있어요 🔮",
+  "코의 형태와 재물운 수치를 분석 중입니다 💰",
+  "눈빛과 입꼬리에 깃든 성격과 말년운을 유추하는 중 ✨",
+  "관상 분석 보고서를 상세히 작성하고 있어요 ✍️",
+];
+
 const FUN_STYLE_IDS = STYLES.filter((s) => s.category === "fun").map((s) => s.id);
 
 export default function UploadCard() {
@@ -52,6 +61,7 @@ export default function UploadCard() {
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMsgIdx, setLoadingMsgIdx] = useState(0);
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [faceReadingResult, setFaceReadingResult] = useState<any | null>(null);
   const [usedStyleId, setUsedStyleId] = useState<string>("corporate");
   const [printSizeId, setPrintSizeId] = useState<string>(PRINT_SIZES[1].id);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
@@ -72,11 +82,12 @@ export default function UploadCard() {
   useEffect(() => {
     if (!isLoading) return;
     setLoadingMsgIdx(0);
+    const messages = category === "face_reading" ? FACE_READING_LOADING_MESSAGES : LOADING_MESSAGES;
     const timer = setInterval(() => {
-      setLoadingMsgIdx((i) => (i + 1) % LOADING_MESSAGES.length);
-    }, 3500);
+      setLoadingMsgIdx((i) => (i + 1) % messages.length);
+    }, 3000);
     return () => clearInterval(timer);
-  }, [isLoading]);
+  }, [isLoading, category]);
 
   const stylesInCategory = useMemo(
     () => STYLES.filter((s) => s.category === category),
@@ -162,6 +173,8 @@ export default function UploadCard() {
     setCategory(id);
     if (id === "custom") {
       setSelectedStyleId("custom");
+    } else if (id === "face_reading") {
+      setSelectedStyleId("face_reading");
     } else {
       const first = STYLES.find((s) => s.category === id);
       if (first) setSelectedStyleId(first.id);
@@ -177,13 +190,45 @@ export default function UploadCard() {
 
   const handleSubmit = async () => {
     if (!selfieBase64) return;
-    if (selectedStyleId === "custom" && !customPrompt.trim()) {
-      setError("커스텀 스타일 설명을 입력해 주세요. (예: 우주비행사 슈트를 입고 은하수 배경 앞에서)");
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    setFaceReadingResult(null);
+
+    if (category === "face_reading") {
+      try {
+        const response = await fetch("/api/face-reading", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            imageBase64: selfieBase64,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || "관상 분석 중 오류가 발생했습니다.");
+        }
+
+        setFaceReadingResult(data);
+      } catch (err: unknown) {
+        console.error(err);
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg || "네트워크 연결 오류가 발생했거나 서버에 접근할 수 없습니다.");
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
+    if (selectedStyleId === "custom" && !customPrompt.trim()) {
+      setError("커스텀 스타일 설명을 입력해 주세요. (예: 우주비행사 슈트를 입고 은하수 배경 앞에서)");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const response = await fetch("/api/generate", {
@@ -265,12 +310,14 @@ export default function UploadCard() {
 
   const resetForNewStyle = () => {
     setResult(null);
+    setFaceReadingResult(null);
     setError(null);
     // keep the selfie — user just wants a different style
   };
 
   const resetAll = () => {
     setResult(null);
+    setFaceReadingResult(null);
     setSelfieBase64(null);
     setFileName(null);
     setError(null);
@@ -282,30 +329,180 @@ export default function UploadCard() {
 
   // ─────────────────────────── 1. Loading State ───────────────────────────
   if (isLoading) {
+    const messages = category === "face_reading" ? FACE_READING_LOADING_MESSAGES : LOADING_MESSAGES;
     return (
       <div className="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-md rounded-2xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center min-h-[380px]">
         <div className="relative w-16 h-16 mb-6">
           <div className="absolute inset-0 rounded-full border-4 border-slate-100" />
           <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin" />
           <div className="absolute inset-0 flex items-center justify-center text-xl">
-            {selectedStyle?.emoji ?? "✨"}
+            {category === "face_reading" ? "🔮" : selectedStyle?.emoji ?? "✨"}
           </div>
         </div>
-        <h3 className="text-lg font-bold text-slate-800 mb-2 transition-all">
-          {LOADING_MESSAGES[loadingMsgIdx]}
+        <h3 className="text-lg font-bold text-slate-800 mb-2 transition-all text-center">
+          {messages[loadingMsgIdx]}
         </h3>
         <p className="text-slate-400 text-xs text-center max-w-xs leading-relaxed">
-          두 인공지능 모델(Flash Lite 및 Pro)이 동시에{" "}
-          <span className="font-bold text-indigo-500">
-            {selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label}
-          </span>{" "}
-          사진을 생성하고 있습니다. 약 15~30초 가량 소요될 수 있어요.
+          {category === "face_reading" ? (
+            <>
+              멀티모달 AI가 이미지의 이목구비를 정밀 식별하여 관상을 분석하고 있습니다. 약 5~15초 소요됩니다.
+            </>
+          ) : (
+            <>
+              두 인공지능 모델(Flash Lite 및 Pro)이 동시에{" "}
+              <span className="font-bold text-indigo-500">
+                {selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label}
+              </span>{" "}
+              사진을 생성하고 있습니다. 약 15~30초 가량 소요될 수 있어요.
+            </>
+          )}
         </p>
       </div>
     );
   }
 
-  // ─────────────────────────── 2. Result View ───────────────────────────
+  // ─────────────────────────── 2. Face Reading Result View ───────────────────────────
+  if (faceReadingResult) {
+    const data = faceReadingResult;
+    const fortuneLabels: Record<string, { label: string; emoji: string; color: string }> = {
+      wealth: { label: "재물운", emoji: "💰", color: "bg-amber-500" },
+      love: { label: "연애·배우자운", emoji: "💖", color: "bg-rose-500" },
+      career: { label: "직업·성공운", emoji: "💼", color: "bg-indigo-500" },
+      health: { label: "건강운", emoji: "🍀", color: "bg-emerald-500" },
+    };
+
+    return (
+      <div className="w-full max-w-2xl mx-auto bg-white/95 backdrop-blur-md rounded-3xl border border-slate-100/80 p-6 sm:p-8 shadow-2xl shadow-slate-300/40 flex flex-col">
+        <div className="text-center mb-8">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100 mb-3 shadow-sm">
+            🔮 AI 관상 분석 완료
+          </span>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">당신의 관상 분석 보고서</h3>
+          <p className="text-xs text-slate-500 mt-1">얼굴 윤곽과 이목구비 분석에 기초한 운세 해설입니다</p>
+        </div>
+
+        {/* Top Split: Photo & Overall Score */}
+        <div className="flex flex-col sm:flex-row items-center gap-6 mb-8 bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+          {selfieBase64 && (
+            <div className="relative w-32 h-44 rounded-xl overflow-hidden shadow-md border-2 border-white ring-4 ring-slate-100/50 flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={selfieBase64} alt="분석 대상" className="w-full h-full object-cover" />
+              {/* Scan effect */}
+              <div className="absolute left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent top-0 animate-scan" />
+            </div>
+          )}
+          <div className="flex-1 text-center sm:text-left flex flex-col justify-center">
+            <div className="mb-2">
+              <span className="text-[11px] font-extrabold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">종합 관상 점수</span>
+            </div>
+            <div className="flex items-baseline justify-center sm:justify-start gap-1 mb-2">
+              <span className="text-5xl font-black text-indigo-600 font-outfit">{data.overallScore}</span>
+              <span className="text-slate-400 font-bold text-lg">/ 100점</span>
+            </div>
+            <p className="text-sm font-bold text-slate-800 leading-relaxed">
+              &quot;{data.summary}&quot;
+            </p>
+          </div>
+        </div>
+
+        {/* 4 Fortunes Grid */}
+        <div className="mb-8">
+          <h4 className="text-sm font-extrabold text-slate-800 mb-4 flex items-center gap-1.5">
+            📊 4대 분야별 운세 점수
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Object.entries(data.fortunes || {}).map(([key, fort]: any) => {
+              const info = fortuneLabels[key] || { label: key, emoji: "✨", color: "bg-slate-500" };
+              return (
+                <div key={key} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
+                      <span>{info.emoji}</span> {info.label}
+                    </span>
+                    <span className="text-xs font-black text-indigo-600">{fort.score} / 5</span>
+                  </div>
+                  {/* Gauge Bar */}
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden mb-2.5">
+                    <div 
+                      className={`h-full ${info.color} rounded-full transition-all duration-500`} 
+                      style={{ width: `${(fort.score / 5) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                    {fort.description}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Five Organs (오관) Detail Analysis */}
+        <div className="mb-8">
+          <h4 className="text-sm font-extrabold text-slate-800 mb-4 flex items-center gap-1.5">
+            🧐 신체 부위별 상세 관상 (오관)
+          </h4>
+          <div className="space-y-3">
+            {(data.features || []).map((feat: any, idx: number) => (
+              <div key={idx} className="bg-slate-50/50 border border-slate-100 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-xs font-extrabold text-indigo-600 bg-indigo-50/80 px-2 py-0.5 rounded-md">
+                    {feat.name}
+                  </span>
+                  <span className="text-xs font-bold text-slate-800">{feat.value}</span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  {feat.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Celebrity & Advice */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+          <div className="bg-gradient-to-br from-indigo-50/40 to-violet-50/40 border border-indigo-100/50 rounded-2xl p-5">
+            <span className="text-xs font-extrabold text-indigo-700 bg-indigo-100/50 px-2.5 py-1 rounded-full mb-3 inline-block">
+              🦁 닮은꼴 동물상 / 연예인
+            </span>
+            <p className="text-sm font-extrabold text-slate-800 leading-relaxed">
+              {data.celebrity}
+            </p>
+          </div>
+          <div className="bg-gradient-to-br from-emerald-50/30 to-teal-50/30 border border-emerald-100/50 rounded-2xl p-5">
+            <span className="text-xs font-extrabold text-emerald-700 bg-emerald-100/50 px-2.5 py-1 rounded-full mb-3 inline-block">
+              💡 운을 높이는 조언 & 스타일링
+            </span>
+            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+              {data.advice}
+            </p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row justify-center gap-3 border-t border-slate-100 pt-6">
+          <button
+            onClick={resetForNewStyle}
+            className="bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 px-8 rounded-xl transition-all duration-200 active:scale-[0.98] text-sm flex items-center justify-center gap-2"
+          >
+            🔮 다시 분석하기
+          </button>
+          <button
+            onClick={() => {
+              const text = `[ProShot AI 관상 분석 결과]\n종합 점수: ${data.overallScore}점\n총평: ${data.summary}\n닮은꼴: ${data.celebrity}\n조언: ${data.advice}`;
+              navigator.clipboard.writeText(text);
+              alert("관상 분석 요약 텍스트가 복사되었습니다!");
+            }}
+            className="bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 font-bold py-3.5 px-8 rounded-xl transition-all duration-200 active:scale-[0.98] text-sm flex items-center justify-center gap-2"
+          >
+            📋 결과 복사하기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─────────────────────────── 3. Result View ───────────────────────────
   if (result) {
     const bestResult = result.pro.success ? result.pro : result.lite.success ? result.lite : null;
     const usedLabel = usedStyleId === "custom" ? "커스텀 스타일" : usedStyle?.label ?? "헤드샷";
@@ -629,21 +826,21 @@ export default function UploadCard() {
             🎲 오늘의 랜덤 컨셉
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-1.5 bg-slate-100/70 p-1.5 rounded-2xl">
+        <div className="grid grid-cols-5 gap-1 bg-slate-100/70 p-1.5 rounded-2xl">
           {CATEGORIES.map((cat) => {
             const isActive = category === cat.id;
             return (
               <button
                 key={cat.id}
                 onClick={() => selectCategory(cat.id)}
-                className={`rounded-xl py-2 px-1 text-center transition-all ${
+                className={`rounded-xl py-2 px-0.5 text-center transition-all ${
                   isActive
                     ? "bg-white text-slate-900 shadow-sm font-extrabold"
                     : "text-slate-500 hover:text-slate-700 font-bold"
                 }`}
               >
                 <span className="block text-base leading-none mb-1">{cat.emoji}</span>
-                <span className="block text-[11px] tracking-tight">{cat.label}</span>
+                <span className="block text-[9px] sm:text-[10px] tracking-tight leading-none truncate">{cat.label}</span>
               </button>
             );
           })}
@@ -655,7 +852,15 @@ export default function UploadCard() {
 
       {/* Style Picker or Custom Prompt */}
       <div className="mb-6">
-        {category === "custom" ? (
+        {category === "face_reading" ? (
+          <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-5 text-center flex flex-col items-center">
+            <span className="text-4xl mb-3">🔮</span>
+            <h4 className="text-sm font-extrabold text-slate-800 mb-1.5">AI 관상 스캐너</h4>
+            <p className="text-xs text-slate-500 leading-relaxed max-w-sm px-2">
+              최첨단 멀티모달 AI가 당신의 이마, 눈, 코, 입, 턱 등 오관을 분석하여 동양 관상학 기반의 종합 운세 및 첫인상 조언을 제공합니다.
+            </p>
+          </div>
+        ) : category === "custom" ? (
           <div>
             <textarea
               value={customPrompt}
@@ -741,8 +946,10 @@ export default function UploadCard() {
       >
         <span className="relative z-10 flex items-center gap-1.5">
           <span>
-            {selectedStyle?.emoji ?? "✨"}{" "}
-            {selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label} 생성하기
+            {category === "face_reading"
+              ? "🔮 AI 관상 분석 시작하기"
+              : `${selectedStyle?.emoji ?? "✨"} ${selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label} 생성하기`
+            }
           </span>
           <svg className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
             <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />

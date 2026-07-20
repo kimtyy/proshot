@@ -1,4 +1,4 @@
-export type CategoryId = "business" | "id" | "fun" | "custom";
+export type CategoryId = "business" | "id" | "fun" | "custom" | "face_reading";
 
 export interface StyleCategory {
   id: CategoryId;
@@ -47,6 +47,12 @@ export const CATEGORIES: StyleCategory[] = [
     label: "커스텀",
     emoji: "✍️",
     description: "원하는 스타일을 직접 글로 설명",
+  },
+  {
+    id: "face_reading",
+    label: "관상보기",
+    emoji: "🔮",
+    description: "얼굴 분석을 통한 AI 관상 및 운세 분석",
   },
 ];
 
@@ -176,6 +182,33 @@ export const STYLES: StyleDef[] = [
       "Keep a strong, instantly recognizable resemblance to the person's face and features.",
     prompt:
       "Transform into a charming 3D animated movie character portrait in the style of a modern animation studio: big expressive eyes, soft global illumination, stylized but adorable look.",
+  },
+  {
+    id: "age_10",
+    category: "fun",
+    label: "10년 후의 나",
+    description: "자연스러운 연륜과 초반 변화",
+    emoji: "🧑",
+    prompt:
+      "Modify the portrait to show the person 10 years older. Add very subtle natural fine lines around the eyes and forehead. Maintain the original lighting, hairstyle, background, clothing, and facial features. Focus on realistic and gentle age progression.",
+  },
+  {
+    id: "age_20",
+    category: "fun",
+    label: "20년 후의 나",
+    description: "눈가 주름과 기품 있는 중년",
+    emoji: "👨",
+    prompt:
+      "Modify the portrait to show the person 20 years older, representing a middle-aged adult. Add natural wrinkles on the forehead, under the eyes, and around the mouth. Introduce a few subtle gray strands in the hair. Maintain the original background, clothing, and facial structure.",
+  },
+  {
+    id: "age_30",
+    category: "fun",
+    label: "30년 후의 나",
+    description: "이마 주름과 희끗희끗한 머리칼",
+    emoji: "👴",
+    prompt:
+      "Modify the portrait to show the person 30 years older, representing a mature senior. Add distinct natural wrinkles on the forehead, deep crow's feet around the eyes, and natural laugh lines. Transform the hair to have significant gray and white hairs. Maintain the original pose, clothing, and background.",
   },
 ];
 
