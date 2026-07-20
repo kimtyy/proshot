@@ -55,6 +55,16 @@ export default function UploadCard() {
   const [usedStyleId, setUsedStyleId] = useState<string>("corporate");
   const [printSizeId, setPrintSizeId] = useState<string>(PRINT_SIZES[1].id);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("admin")) {
+        setIsAdmin(true);
+      }
+    }
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -308,7 +318,9 @@ export default function UploadCard() {
             {usedStyle?.emoji ?? "✨"} {usedLabel} 완성!
           </span>
           <h3 className="text-2xl font-black text-slate-900 tracking-tight">가성비 모델 vs 고품격 모델</h3>
-          <p className="text-xs text-slate-500 mt-1">화질, 생성 속도, 장당 단가를 직접 비교해 보세요</p>
+          <p className="text-xs text-slate-500 mt-1">
+            {isAdmin ? "화질, 생성 속도, 장당 단가를 직접 비교해 보세요" : "화질과 생성 속도를 직접 비교해 보세요"}
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
@@ -359,17 +371,19 @@ export default function UploadCard() {
                   </div>
 
                   <div className="w-full grid grid-cols-2 gap-2 text-center mb-5">
-                    <div className="bg-white rounded-xl p-2.5 border border-slate-100">
+                    <div className={`bg-white rounded-xl p-2.5 border border-slate-100 ${!isAdmin ? "col-span-2" : ""}`}>
                       <p className="text-[10px] text-slate-400 font-bold mb-0.5">⚡ 소요 시간</p>
                       <p className="text-sm font-black text-slate-800">{card.data.timeSec}초</p>
                     </div>
-                    <div className="bg-white rounded-xl p-2.5 border border-slate-100">
-                      <p className="text-[10px] text-slate-400 font-bold mb-0.5">💰 장당 예상 원가</p>
-                      <p className={`text-sm font-black ${card.costClass}`}>{card.cost}</p>
-                      {card.costDetail && (
-                        <p className="text-[9px] text-slate-300 font-bold mt-0.5">{card.costDetail}</p>
-                      )}
-                    </div>
+                    {isAdmin && (
+                      <div className="bg-white rounded-xl p-2.5 border border-slate-100">
+                        <p className="text-[10px] text-slate-400 font-bold mb-0.5">💰 장당 예상 원가</p>
+                        <p className={`text-sm font-black ${card.costClass}`}>{card.cost}</p>
+                        {card.costDetail && (
+                          <p className="text-[9px] text-slate-300 font-bold mt-0.5">{card.costDetail}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="w-full flex gap-2">
@@ -410,9 +424,11 @@ export default function UploadCard() {
           ))}
         </div>
 
-        <p className="text-[10px] text-slate-300 font-medium text-center -mt-4 mb-8">
-          * Flash Lite 이미지 출력 공식 단가 $30/1M 토큰 — 1K(1024px) 이미지 1,120 토큰 = $0.0336, 환율 1,380원/USD 기준 환산
-        </p>
+        {isAdmin && (
+          <p className="text-[10px] text-slate-300 font-medium text-center -mt-4 mb-8">
+            * Flash Lite 이미지 출력 공식 단가 $30/1M 토큰 — 1K(1024px) 이미지 1,120 토큰 = $0.0336, 환율 1,380원/USD 기준 환산
+          </p>
+        )}
 
         {/* Before / After Slider */}
         {selfieBase64 && bestResult && (
