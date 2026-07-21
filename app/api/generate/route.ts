@@ -6,9 +6,11 @@ import { checkRateLimit, getClientIp } from "../../lib/rateLimit";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const RATE_LIMIT = 8; // requests per window per IP (each request runs 2 paid model calls)
+const RATE_LIMIT = 8; // requests per window per IP
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+type ModelTier = "lite" | "pro";
 
 interface ModelSuccessResult {
   success: true;
@@ -50,6 +52,7 @@ export async function POST(req: NextRequest) {
     const styleId: string = body.styleId ?? body.style ?? "corporate";
     const bgColor: BgColor | undefined = body.bgColor;
     const rawCustomPrompt: string | undefined = body.customPrompt;
+    const modelTier: ModelTier = body.model === "pro" ? "pro" : "lite";
 
     if (!imageBase64) {
       return NextResponse.json(
@@ -173,15 +176,16 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    const [liteResult, proResult] = await Promise.all([runLiteModel(), runProModel()]);
+    const result = modelTier === "pro" ? await runProModel() : await runLiteModel();
 
-    if (!liteResult.success && !proResult.success) {
-      throw new Error(`모든 인공지능 모델 생성 실패.\n[Lite]: ${liteResult.error}\n[Pro]: ${proResult.error}`);
+    if (!result.success) {
+      return NextResponse.json({ error: result.error }, { status: 502 });
     }
 
     return NextResponse.json({
-      lite: liteResult,
-      pro: proResult
+      model: modelTier,
+      imageUrl: result.imageUrl,
+      timeSec: result.timeSec,
     });
 
   } catch (err: unknown) {
