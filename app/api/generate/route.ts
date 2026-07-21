@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { buildPrompt, getStyle, type BgColor } from "../../lib/styles";
+import { checkRateLimit, getClientIp } from "../../lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const RATE_LIMIT = 8; // requests per window per IP (each request runs 2 paid model calls)
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 interface ModelSuccessResult {
   success: true;
@@ -31,6 +36,15 @@ function toUserMessage(err: unknown, fallback: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rateLimit = checkRateLimit(`generate:${clientIp}`, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `요청이 너무 많습니다. ${rateLimit.retryAfterSec}초 후 다시 시도해 주세요.` },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const imageBase64: string | undefined = body.imageBase64;
     const styleId: string = body.styleId ?? body.style ?? "corporate";
@@ -83,6 +97,14 @@ export async function POST(req: NextRequest) {
       rawBase64 = matches[2];
     } else if (imageBase64.includes("base64,")) {
       rawBase64 = imageBase64.split("base64,")[1];
+    }
+
+    const approxImageBytes = (rawBase64.length * 3) / 4;
+    if (approxImageBytes > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: "파일 크기는 8MB 이하만 업로드 가능합니다." },
+        { status: 413 }
+      );
     }
 
     const prompt = buildPrompt({
