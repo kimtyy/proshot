@@ -1,8 +1,17 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+ProShot is a Next.js app that turns a selfie into headshots, ID photos, concept
+photoshoots, and an AI face-reading report via the Gemini API.
 
 ## Getting Started
 
-First, run the development server:
+Copy `.env.example` to `.env.local` and set `GEMINI_API_KEY` to a key from
+[Google AI Studio](https://aistudio.google.com/apikey) — both `/api/generate`
+and `/api/face-reading` require it and return a 500 error without it.
+
+```bash
+cp .env.example .env.local
+```
+
+Then run the development server:
 
 ```bash
 npm run dev

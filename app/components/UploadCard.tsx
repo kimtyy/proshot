@@ -12,23 +12,36 @@ import {
 import { PRINT_SIZES, generatePhotoSheet, type PrintSize } from "../lib/photoSheet";
 import CompareSlider from "./CompareSlider";
 
-interface ModelSuccessResult {
-  success: true;
+type ModelTier = "lite" | "pro";
+
+interface GenerationResult {
+  model: ModelTier;
   imageUrl: string;
   timeSec: string;
 }
 
-interface ModelErrorResult {
-  success: false;
-  error: string;
-}
-
-type ModelResult = ModelSuccessResult | ModelErrorResult;
-
-interface GenerationResult {
-  lite: ModelResult;
-  pro: ModelResult;
-}
+const MODEL_TIERS: {
+  id: ModelTier;
+  name: string;
+  adminName: string;
+  tag: string;
+  description: string;
+}[] = [
+  {
+    id: "lite",
+    name: "가성비 모드 ⚡",
+    adminName: "Gemini 3.1 Flash Lite",
+    tag: "가성비 · 초저지연",
+    description: "빠르고 저렴하게, 합리적인 화질로",
+  },
+  {
+    id: "pro",
+    name: "고화질 모드 ✨",
+    adminName: "Gemini 3 Pro",
+    tag: "고화질 전문 화보",
+    description: "가장 높은 화질과 디테일로",
+  },
+];
 
 interface FortuneDetail {
   score: number;
@@ -80,6 +93,7 @@ export default function UploadCard() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [category, setCategory] = useState<CategoryId>("business");
   const [selectedStyleId, setSelectedStyleId] = useState<string>("corporate");
+  const [modelTier, setModelTier] = useState<ModelTier>("lite");
   const [bgColor, setBgColor] = useState<BgColor>("white");
   const [customPrompt, setCustomPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +103,7 @@ export default function UploadCard() {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [faceReadingResult, setFaceReadingResult] = useState<FaceReadingData | null>(null);
   const [usedStyleId, setUsedStyleId] = useState<string>("corporate");
+  const [usedModelTier, setUsedModelTier] = useState<ModelTier>("lite");
   const [printSizeId, setPrintSizeId] = useState<string>(PRINT_SIZES[1].id);
   const [isSheetGenerating, setIsSheetGenerating] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -266,6 +281,7 @@ export default function UploadCard() {
           imageBase64: selfieBase64,
           styleId: selectedStyleId,
           bgColor,
+          model: modelTier,
           customPrompt: selectedStyleId === "custom" ? customPrompt.trim() : undefined,
         }),
       });
@@ -277,9 +293,11 @@ export default function UploadCard() {
       }
 
       setUsedStyleId(selectedStyleId);
+      setUsedModelTier(modelTier);
       setResult({
-        lite: data.lite,
-        pro: data.pro,
+        model: data.model,
+        imageUrl: data.imageUrl,
+        timeSec: data.timeSec,
       });
     } catch (err: unknown) {
       console.error(err);
@@ -315,13 +333,11 @@ export default function UploadCard() {
 
   const handleSheetDownload = async () => {
     if (!result) return;
-    const best = result.pro.success ? result.pro : result.lite.success ? result.lite : null;
-    if (!best) return;
     const size = PRINT_SIZES.find((s) => s.id === printSizeId) ?? PRINT_SIZES[1];
 
     setIsSheetGenerating(true);
     try {
-      const { dataUrl, count } = await generatePhotoSheet(best.imageUrl, size);
+      const { dataUrl, count } = await generatePhotoSheet(result.imageUrl, size);
       const a = document.createElement("a");
       a.href = dataUrl;
       a.download = `proshot_sheet_${size.id}_${count}cut.png`;
@@ -356,6 +372,7 @@ export default function UploadCard() {
   // ─────────────────────────── 1. Loading State ───────────────────────────
   if (isLoading) {
     const messages = category === "face_reading" ? FACE_READING_LOADING_MESSAGES : LOADING_MESSAGES;
+    const loadingTier = MODEL_TIERS.find((t) => t.id === modelTier) ?? MODEL_TIERS[0];
     return (
       <div className="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-md rounded-2xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center min-h-[380px]">
         <div className="relative w-16 h-16 mb-6">
@@ -375,11 +392,11 @@ export default function UploadCard() {
             </>
           ) : (
             <>
-              두 인공지능 모델(Flash Lite 및 Pro)이 동시에{" "}
+              {loadingTier.name} 모델이{" "}
               <span className="font-bold text-indigo-500">
                 {selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label}
               </span>{" "}
-              사진을 생성하고 있습니다. 약 15~30초 가량 소요될 수 있어요.
+              사진을 생성하고 있습니다. {modelTier === "pro" ? "약 20~40초" : "약 5~15초"} 가량 소요될 수 있어요.
             </>
           )}
         </p>
@@ -530,131 +547,75 @@ export default function UploadCard() {
 
   // ─────────────────────────── 3. Result View ───────────────────────────
   if (result) {
-    const bestResult = result.pro.success ? result.pro : result.lite.success ? result.lite : null;
     const usedLabel = usedStyleId === "custom" ? "커스텀 스타일" : usedStyle?.label ?? "헤드샷";
     const isPrintable = usedStyle?.printable ?? false;
+    const tier = MODEL_TIERS.find((t) => t.id === usedModelTier) ?? MODEL_TIERS[0];
+    const cost = usedModelTier === "pro" ? { label: "약 185원", detail: "$0.134 / 2K 이미지" } : { label: "약 46원", detail: "$0.0336 / 1K 이미지" };
 
     return (
-      <div className="w-full max-w-4xl mx-auto bg-white/95 backdrop-blur-md rounded-3xl border border-slate-100/80 p-6 sm:p-8 md:p-10 shadow-2xl shadow-slate-300/40">
+      <div className="w-full max-w-2xl mx-auto bg-white/95 backdrop-blur-md rounded-3xl border border-slate-100/80 p-6 sm:p-8 md:p-10 shadow-2xl shadow-slate-300/40">
         <div className="text-center mb-8">
           <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100 mb-3 shadow-sm">
             {usedStyle?.emoji ?? "✨"} {usedLabel} 완성!
           </span>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">가성비 모델 vs 고품격 모델</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            {isAdmin ? "화질, 생성 속도, 장당 단가를 직접 비교해 보세요" : "화질과 생성 속도를 직접 비교해 보세요"}
-          </p>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">{usedLabel}</h3>
+          {isAdmin && (
+            <p className="text-[10px] text-slate-400 mt-1">
+              {tier.adminName} · {tier.tag}
+            </p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          {[
-            {
-              key: "lite" as const,
-              data: result.lite,
-              name: "Gemini 3.1 Flash Lite 🍌",
-              tag: "Nano Banana 2 Lite · 초저지연",
-              nameClass: "text-indigo-700 bg-indigo-50",
-              cost: "약 46원",
-              costDetail: "$0.0336 / 1K 이미지",
-              costClass: "text-emerald-600",
-              btnClass: "bg-slate-900 hover:bg-slate-800",
-            },
-            {
-              key: "pro" as const,
-              data: result.pro,
-              name: "Gemini 3 Pro ✨",
-              tag: "고화질 전문 화보",
-              nameClass: "text-violet-700 bg-violet-50",
-              cost: "약 142원",
-              costDetail: "",
-              costClass: "text-slate-800",
-              btnClass: "bg-indigo-600 hover:bg-indigo-500 shadow-md shadow-indigo-600/10",
-            },
-          ].map((card) => (
-            <div
-              key={card.key}
-              className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 flex flex-col items-center shadow-sm"
-            >
-              <div className="w-full flex items-center justify-between mb-4">
-                <span className={`text-sm font-bold px-3 py-1 rounded-xl ${card.nameClass}`}>
-                  {card.name}
-                </span>
-                <span className="text-[11px] font-bold text-slate-400">{card.tag}</span>
-              </div>
+        <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 flex flex-col items-center shadow-sm mb-8">
+          <div className="relative w-full aspect-[3/4] max-w-[280px] rounded-xl overflow-hidden shadow-md border-2 border-white ring-4 ring-slate-100 mb-4">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={result.imageUrl}
+              alt={`${usedLabel} 결과`}
+              className="w-full h-full object-cover"
+            />
+          </div>
 
-              {card.data.success ? (
-                <>
-                  <div className="relative w-full aspect-[3/4] max-w-[240px] rounded-xl overflow-hidden shadow-md border-2 border-white ring-4 ring-slate-100 mb-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={card.data.imageUrl}
-                      alt={`${card.name} 결과`}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  <div className="w-full grid grid-cols-2 gap-2 text-center mb-5">
-                    <div className={`bg-white rounded-xl p-2.5 border border-slate-100 ${!isAdmin ? "col-span-2" : ""}`}>
-                      <p className="text-[10px] text-slate-400 font-bold mb-0.5">⚡ 소요 시간</p>
-                      <p className="text-sm font-black text-slate-800">{card.data.timeSec}초</p>
-                    </div>
-                    {isAdmin && (
-                      <div className="bg-white rounded-xl p-2.5 border border-slate-100">
-                        <p className="text-[10px] text-slate-400 font-bold mb-0.5">💰 장당 예상 원가</p>
-                        <p className={`text-sm font-black ${card.costClass}`}>{card.cost}</p>
-                        {card.costDetail && (
-                          <p className="text-[9px] text-slate-300 font-bold mt-0.5">{card.costDetail}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="w-full flex gap-2">
-                    <a
-                      href={card.data.imageUrl}
-                      download={`proshot_${card.key}_${usedStyleId}.png`}
-                      className={`flex-1 text-white text-xs font-bold py-3 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 transition-colors ${card.btnClass}`}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                      다운로드
-                    </a>
-                    <button
-                      onClick={() => card.data.success && handleShare(card.data.imageUrl, usedLabel)}
-                      className="bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                      title="공유하기"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                      공유
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="w-full flex-grow flex flex-col items-center justify-center p-6 border-2 border-dashed border-rose-100 rounded-xl bg-rose-50/20 text-center min-h-[280px]">
-                  <svg className="w-10 h-10 text-rose-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  <h4 className="text-xs font-extrabold text-rose-800 uppercase mb-1">생성 오류</h4>
-                  <p className="text-[11px] font-bold text-rose-600 px-2 leading-relaxed max-w-xs">
-                    {card.data.error}
-                  </p>
-                </div>
-              )}
+          <div className="w-full grid grid-cols-2 gap-2 text-center mb-5">
+            <div className={`bg-white rounded-xl p-2.5 border border-slate-100 ${!isAdmin ? "col-span-2" : ""}`}>
+              <p className="text-[10px] text-slate-400 font-bold mb-0.5">⚡ 소요 시간</p>
+              <p className="text-sm font-black text-slate-800">{result.timeSec}초</p>
             </div>
-          ))}
-        </div>
+            {isAdmin && (
+              <div className="bg-white rounded-xl p-2.5 border border-slate-100">
+                <p className="text-[10px] text-slate-400 font-bold mb-0.5">💰 장당 예상 원가</p>
+                <p className="text-sm font-black text-slate-800">{cost.label}</p>
+                <p className="text-[9px] text-slate-300 font-bold mt-0.5">{cost.detail}</p>
+              </div>
+            )}
+          </div>
 
-        {isAdmin && (
-          <p className="text-[10px] text-slate-300 font-medium text-center -mt-4 mb-8">
-            * Flash Lite 이미지 출력 공식 단가 $30/1M 토큰 — 1K(1024px) 이미지 1,120 토큰 = $0.0336, 환율 1,380원/USD 기준 환산
-          </p>
-        )}
+          <div className="w-full flex gap-2">
+            <a
+              href={result.imageUrl}
+              download={`proshot_${usedModelTier}_${usedStyleId}.png`}
+              className="flex-1 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold py-3 px-4 rounded-xl text-center flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              다운로드
+            </a>
+            <button
+              onClick={() => handleShare(result.imageUrl, usedLabel)}
+              className="bg-white border border-slate-200 hover:border-indigo-300 hover:text-indigo-600 text-slate-600 text-xs font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+              title="공유하기"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              공유
+            </button>
+          </div>
+        </div>
 
         {/* Before / After Slider */}
-        {selfieBase64 && bestResult && (
+        {selfieBase64 && (
           <div className="mb-8">
             <div className="text-center mb-4">
               <h4 className="text-lg font-extrabold text-slate-900 tracking-tight">
@@ -665,7 +626,7 @@ export default function UploadCard() {
             <div className="max-w-[320px] mx-auto">
               <CompareSlider
                 beforeSrc={selfieBase64}
-                afterSrc={bestResult.imageUrl}
+                afterSrc={result.imageUrl}
                 beforeLabel="원본 셀카"
                 afterLabel={usedLabel}
               />
@@ -674,7 +635,7 @@ export default function UploadCard() {
         )}
 
         {/* Print Sheet Generator — only for ID-type styles */}
-        {isPrintable && bestResult && (
+        {isPrintable && (
           <div className="mb-8 bg-gradient-to-br from-slate-50 to-indigo-50/40 rounded-2xl border border-indigo-100/60 p-5 sm:p-6">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-lg">🖨️</span>
@@ -957,6 +918,32 @@ export default function UploadCard() {
                     style={{ backgroundColor: bg.swatch }}
                   />
                   {bg.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Model Tier Picker */}
+      {category !== "face_reading" && (
+        <div className="mb-6">
+          <label className="block text-sm font-bold text-slate-700 mb-2.5">생성 모델 선택</label>
+          <div className="grid grid-cols-2 gap-2.5">
+            {MODEL_TIERS.map((tier) => {
+              const isSelected = modelTier === tier.id;
+              return (
+                <button
+                  key={tier.id}
+                  onClick={() => setModelTier(tier.id)}
+                  className={`flex flex-col items-start text-left px-4 py-3 rounded-xl border-2 transition-all ${
+                    isSelected
+                      ? "border-indigo-600 bg-indigo-50/30 text-indigo-700"
+                      : "border-slate-100 bg-slate-50/30 text-slate-500 hover:border-slate-200"
+                  }`}
+                >
+                  <span className="text-xs font-bold">{tier.name}</span>
+                  <span className="text-[10px] font-medium mt-0.5 opacity-80">{tier.description}</span>
                 </button>
               );
             })}

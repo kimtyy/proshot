@@ -1,11 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
+import { checkRateLimit, getClientIp } from "../../lib/rateLimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const RATE_LIMIT = 12; // requests per window per IP
+const RATE_WINDOW_MS = 10 * 60 * 1000;
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
 export async function POST(req: NextRequest) {
   try {
+    const clientIp = getClientIp(req);
+    const rateLimit = checkRateLimit(`face-reading:${clientIp}`, RATE_LIMIT, RATE_WINDOW_MS);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: `요청이 너무 많습니다. ${rateLimit.retryAfterSec}초 후 다시 시도해 주세요.` },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const imageBase64: string | undefined = body.imageBase64;
 
@@ -34,6 +48,14 @@ export async function POST(req: NextRequest) {
       rawBase64 = matches[2];
     } else if (imageBase64.includes("base64,")) {
       rawBase64 = imageBase64.split("base64,")[1];
+    }
+
+    const approxImageBytes = (rawBase64.length * 3) / 4;
+    if (approxImageBytes > MAX_IMAGE_BYTES) {
+      return NextResponse.json(
+        { error: "파일 크기는 8MB 이하만 업로드 가능합니다." },
+        { status: 413 }
+      );
     }
 
     const prompt = `당신은 30년 경력의 동양 철학 및 관상학(마의상법 등) 대가입니다.
