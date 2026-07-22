@@ -554,8 +554,12 @@ export default function UploadCard() {
           <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-600 border border-indigo-100 mb-3 shadow-sm">
             {usedStyle?.emoji ?? "✨"} {usedLabel} 완성!
           </span>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">{tier.name}</h3>
-          <p className="text-xs text-slate-500 mt-1">{tier.tag}</p>
+          <h3 className="text-2xl font-black text-slate-900 tracking-tight">{usedLabel}</h3>
+          {isAdmin && (
+            <p className="text-[10px] text-slate-400 mt-1">
+              {tier.name} · {tier.tag}
+            </p>
+          )}
         </div>
 
         <div className="bg-slate-50/50 rounded-2xl border border-slate-100 p-5 flex flex-col items-center shadow-sm mb-8">
@@ -563,7 +567,7 @@ export default function UploadCard() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={result.imageUrl}
-              alt={`${tier.name} 결과`}
+              alt={`${usedLabel} 결과`}
               className="w-full h-full object-cover"
             />
           </div>
