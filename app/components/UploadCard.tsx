@@ -372,6 +372,7 @@ export default function UploadCard() {
   // ─────────────────────────── 1. Loading State ───────────────────────────
   if (isLoading) {
     const messages = category === "face_reading" ? FACE_READING_LOADING_MESSAGES : LOADING_MESSAGES;
+    const loadingTier = MODEL_TIERS.find((t) => t.id === modelTier) ?? MODEL_TIERS[0];
     return (
       <div className="w-full max-w-xl mx-auto bg-white/90 backdrop-blur-md rounded-2xl border border-slate-100 p-8 shadow-xl shadow-slate-200/50 flex flex-col items-center justify-center min-h-[380px]">
         <div className="relative w-16 h-16 mb-6">
@@ -391,7 +392,7 @@ export default function UploadCard() {
             </>
           ) : (
             <>
-              {modelTier === "pro" ? "Gemini 3 Pro" : "Gemini 3.1 Flash Lite"} 모델이{" "}
+              {loadingTier.name} 모델이{" "}
               <span className="font-bold text-indigo-500">
                 {selectedStyleId === "custom" ? "커스텀 스타일" : selectedStyle?.label}
               </span>{" "}
