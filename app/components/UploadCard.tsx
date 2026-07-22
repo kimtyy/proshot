@@ -23,18 +23,21 @@ interface GenerationResult {
 const MODEL_TIERS: {
   id: ModelTier;
   name: string;
+  adminName: string;
   tag: string;
   description: string;
 }[] = [
   {
     id: "lite",
-    name: "Gemini 3.1 Flash Lite 🍌",
+    name: "가성비 모드 ⚡",
+    adminName: "Gemini 3.1 Flash Lite",
     tag: "가성비 · 초저지연",
     description: "빠르고 저렴하게, 합리적인 화질로",
   },
   {
     id: "pro",
-    name: "Gemini 3 Pro ✨",
+    name: "고화질 모드 ✨",
+    adminName: "Gemini 3 Pro",
     tag: "고화질 전문 화보",
     description: "가장 높은 화질과 디테일로",
   },
@@ -557,7 +560,7 @@ export default function UploadCard() {
           <h3 className="text-2xl font-black text-slate-900 tracking-tight">{usedLabel}</h3>
           {isAdmin && (
             <p className="text-[10px] text-slate-400 mt-1">
-              {tier.name} · {tier.tag}
+              {tier.adminName} · {tier.tag}
             </p>
           )}
         </div>
